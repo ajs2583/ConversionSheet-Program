@@ -1,185 +1,231 @@
-# tkinter UI library
-from tkinter import *
-# Message box UI
-from tkinter import messagebox
-# date time for current date time
-from datetime import datetime
-# Library for excel spreadsheets
-import openpyxl
-# For opening the Excel file
-import os
+"""
+Conversion Tracker Application
 
+This application helps track customer conversion rates by calculating the number
+of customers from morning and closing counts and comparing with transaction numbers.
+Data is saved to an Excel spreadsheet for record keeping.
+"""
+
+import os
+import tkinter as tk
+from tkinter import messagebox
+from datetime import datetime
+import openpyxl
+
+
+# CONSTANTS
+PADDING = 50
+ENTRY_WIDTH = 15
+TEXT_HEIGHT = 5
+TEXT_WIDTH = 20
 
 # FONT CONSTANTS
 PERSONAL_NOTE_COLOR = 'green'
 PERSONAL_NOTE_FONT = ('Helvetica', 13, 'bold')
 STANDARD_FONT = ('Arial', 11, 'bold')
+COMMENT_FONT = ('Arial', 9)
 
 
-#! Backend Logic ###############################################################
-'''
-This function calculates the number of customers by subtracting the morning count from the closing count.
-args -- closing count and morning count (int)
-returns: difference between closing and morning count
-'''
+class ConversionTracker:
+    def __init__(self, root):
+        self.root = root
+        self.setup_window()
+        self.create_widgets()
+        
+    def setup_window(self):
+        """Configure the main window"""
+        self.root.title("Conversion Tracker")
+        self.root.config(padx=PADDING, pady=PADDING)
+        
+    def create_widgets(self):
+        """Create all UI widgets"""
+        self.create_labels()
+        self.create_entries()
+        self.create_buttons()
+        
+    def create_labels(self):
+        """Create all label widgets"""
+        labels = [
+            "Day:", "Date:", "Morning Count:", "Closing Count:", "# Of Cust.:",
+            "# Of Trans.:", "Conv. Rate:", "END of DAY (sales w/o tax):", "Comments:"
+        ]
+        
+        for idx, text in enumerate(labels):
+            label = tk.Label(self.root, text=text, font=STANDARD_FONT)
+            label.grid(column=0, row=idx, pady=5, sticky=tk.W)
+            
+    def create_entries(self):
+        """Create all entry widgets"""
+        # Day dropdown
+        self.day_var = tk.StringVar(value="Mon")
+        days = ["Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun"]
+        self.day_menu = tk.OptionMenu(self.root, self.day_var, *days)
+        self.day_menu.grid(column=1, row=0)
+        
+        # Date entry with default current date
+        self.date_entry = tk.Entry(self.root, width=ENTRY_WIDTH)
+        self.date_entry.grid(column=1, row=1)
+        self.date_entry.insert(0, datetime.now().strftime("%m-%d-%Y"))
+        
+        # Count entries
+        self.morning_count_entry = tk.Entry(self.root, width=ENTRY_WIDTH)
+        self.morning_count_entry.grid(column=1, row=2)
+        
+        self.closing_count_entry = tk.Entry(self.root, width=ENTRY_WIDTH)
+        self.closing_count_entry.grid(column=1, row=3)
+        
+        # Results entries (disabled for manual entry)
+        self.customers_entry = tk.Entry(self.root, width=ENTRY_WIDTH, state=tk.DISABLED)
+        self.customers_entry.grid(column=1, row=4)
+        
+        self.transaction_number_entry = tk.Entry(self.root, width=ENTRY_WIDTH)
+        self.transaction_number_entry.grid(column=1, row=5)
+        
+        self.conversion_rate_entry = tk.Entry(self.root, width=ENTRY_WIDTH, state=tk.DISABLED)
+        self.conversion_rate_entry.grid(column=1, row=6)
+        
+        # End of day entry
+        self.end_of_day_entry = tk.Entry(self.root, width=ENTRY_WIDTH)
+        self.end_of_day_entry.grid(column=1, row=7)
+        
+        # Comments text area
+        self.comments_entry = tk.Text(self.root, height=TEXT_HEIGHT, width=TEXT_WIDTH, font=COMMENT_FONT)
+        self.comments_entry.grid(column=1, row=8, columnspan=2)
+        
+    def create_buttons(self):
+        """Create all button widgets"""
+        # Calculate button
+        self.calculate_button = tk.Button(self.root, text="Calculate", command=self.calculate_and_fill)
+        self.calculate_button.grid(column=2, row=9, pady=10)
+        
+        # Confirm button (hidden initially)
+        self.confirm_button = tk.Button(self.root, text="Confirm", command=self.confirm_and_save)
+        self.confirm_button.grid(column=2, row=10, pady=10)
+        self.confirm_button.grid_remove()
+        
+    def calculate_number_of_customers(self, closing_count, morning_count):
+        """Calculate number of customers by subtracting morning count from closing count"""
+        return closing_count - morning_count
+        
+    def calculate_conversion_rate(self, transaction_number, number_of_customers):
+        """Calculate conversion rate as percentage of transactions to customers"""
+        if number_of_customers > 0:
+            return f'{transaction_number / number_of_customers * 100:.2f}%'
+        return "0.00%"
+        
+    def calculate_and_fill(self):
+        """Calculate values based on user input and fill in results fields"""
+        try:
+            morning_count = int(self.morning_count_entry.get())
+            closing_count = int(self.closing_count_entry.get())
+            transaction_number = int(self.transaction_number_entry.get())
+            
+            number_of_customers = self.calculate_number_of_customers(closing_count, morning_count)
+            conversion_rate = self.calculate_conversion_rate(transaction_number, number_of_customers)
+            
+            # Update customer entry
+            self.customers_entry.config(state=tk.NORMAL)
+            self.customers_entry.delete(0, tk.END)
+            self.customers_entry.insert(0, number_of_customers)
+            self.customers_entry.config(state=tk.DISABLED)
+            
+            # Update conversion rate entry
+            self.conversion_rate_entry.config(state=tk.NORMAL)
+            self.conversion_rate_entry.delete(0, tk.END)
+            self.conversion_rate_entry.insert(0, conversion_rate)
+            self.conversion_rate_entry.config(state=tk.DISABLED)
+            
+            # Show confirm button
+            self.confirm_button.grid()
+        except ValueError:
+            messagebox.showerror("Input Error", "Please enter valid numbers for counts and transactions.")
+    
+    def save_to_excel(self, data):
+        """Save data to Excel spreadsheet"""
+        file_name = 'conversion_data.xlsx'
+        try:
+            workbook = openpyxl.load_workbook(file_name)
+            sheet = workbook.active
+        except FileNotFoundError:
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.append(['Date', 'Day', 'Morning Count', 'Closing Count', 'Transaction Number',
+                         'Number of Customers', 'Conversion Rate', 'End of Day', 'Comments'])
+        
+        sheet.append([
+            data['date'], data['day'], data['morning_count'], data['closing_count'], 
+            data['transaction_number'], data['number_of_customers'], data['conversion_rate'],
+            data['end_of_day'], data['comments']
+        ])
+        
+        workbook.save(file_name)
+        
+        # Open the Excel file to show the user
+        try:
+            os.startfile(file_name)  # Windows
+        except AttributeError:
+            os.system(f'open "{file_name}"')  # macOS
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open file: {e}")
+    
+    def confirm_and_save(self):
+        """Confirm the entries and save data to Excel"""
+        try:
+            # Collect all data
+            data = {
+                'date': self.date_entry.get(),
+                'day': self.day_var.get(),
+                'morning_count': int(self.morning_count_entry.get()),
+                'closing_count': int(self.closing_count_entry.get()),
+                'transaction_number': int(self.transaction_number_entry.get()),
+                'number_of_customers': int(self.customers_entry.get()),
+                'conversion_rate': self.conversion_rate_entry.get(),
+                'end_of_day': int(self.end_of_day_entry.get()),
+                'comments': self.comments_entry.get("1.0", tk.END).strip()
+            }
+            
+            # Save data to Excel
+            self.save_to_excel(data)
+            messagebox.showinfo("Success", "Data saved successfully!")
+            
+            # Reset fields
+            self.reset_fields()
+        except ValueError:
+            messagebox.showerror("Error", "Please ensure all fields are filled correctly.")
+    
+    def reset_fields(self):
+        """Reset all entry fields to their default state"""
+        # Reset date to current date
+        self.date_entry.delete(0, tk.END)
+        self.date_entry.insert(0, datetime.now().strftime("%m-%d-%Y"))
+        
+        # Clear count entries
+        self.morning_count_entry.delete(0, tk.END)
+        self.closing_count_entry.delete(0, tk.END)
+        self.transaction_number_entry.delete(0, tk.END)
+        
+        # Clear and disable calculated entries
+        self.customers_entry.config(state=tk.NORMAL)
+        self.customers_entry.delete(0, tk.END)
+        self.customers_entry.config(state=tk.DISABLED)
+        
+        self.conversion_rate_entry.config(state=tk.NORMAL)
+        self.conversion_rate_entry.delete(0, tk.END)
+        self.conversion_rate_entry.config(state=tk.DISABLED)
+        
+        # Clear other entries
+        self.end_of_day_entry.delete(0, tk.END)
+        self.comments_entry.delete("1.0", tk.END)
+        
+        # Reset dropdown
+        self.day_var.set("Mon")
+        
+        # Hide confirm button
+        self.confirm_button.grid_remove()
 
-def calculate_number_of_customers(closing_count: int, morning_count: int) -> int:
-    return closing_count - morning_count
 
-
-def conversion_rate_calculation(transaction_number: int, number_of_customers: int) -> str:
-    return f'{transaction_number / number_of_customers * 100:.2f}%' if number_of_customers > 0 else "0.00%"
-
-
-def save_to_excel(date, day, morning_count, closing_count, transaction_number, number_of_customers, conversion_rate, end_of_day, comments):
-    file_name = 'conversion_data.xlsx'
-    try:
-        workbook = openpyxl.load_workbook(file_name)
-    except FileNotFoundError:
-        workbook = openpyxl.Workbook()
-        sheet.append(['Date', 'Day', 'Morning Count', 'Closing Count', 'Transaction Number',
-                      'Number of Customers', 'Conversion Rate', 'End of Day', 'Comments'])
-
-    sheet = workbook.active
-    sheet.append([date, day, morning_count, closing_count, transaction_number,
-                  number_of_customers, conversion_rate, end_of_day, comments])
-    workbook.save(file_name)
-
-    # Open the Excel file to show the user
-    try:
-        os.startfile(file_name)  # Windows
-    except AttributeError:
-        os.system(f'open "{file_name}"')
-    except Exception as e:
-        messagebox.showerror("Error", f"Could not open file: {e}")
-
-
-def calculate_and_fill():
-    try:
-        morning_count = int(morning_count_entry.get())
-        closing_count = int(closing_count_entry.get())
-        transaction_number = int(transaction_number_entry.get())
-
-        number_of_customers = calculate_number_of_customers(closing_count, morning_count)
-        conversion_rate = conversion_rate_calculation(transaction_number, number_of_customers)
-
-        no_of_customers_entry.config(state=NORMAL)
-        no_of_customers_entry.delete(0, END)
-        no_of_customers_entry.insert(0, number_of_customers)
-        no_of_customers_entry.config(state=DISABLED)
-
-        conversion_rate_entry.config(state=NORMAL)
-        conversion_rate_entry.delete(0, END)
-        conversion_rate_entry.insert(0, conversion_rate)
-        conversion_rate_entry.config(state=DISABLED)
-
-        confirm_button.grid()
-
-    except ValueError:
-        messagebox.showerror("Input Error", "Please enter valid numbers for counts and transactions.")
-
-
-def confirm_and_save():
-    try:
-        date = date_entry.get()  # Retrieve the entered date
-        day = clicked.get()
-        morning_count = int(morning_count_entry.get())
-        closing_count = int(closing_count_entry.get())
-        transaction_number = int(transaction_number_entry.get())
-        number_of_customers = int(no_of_customers_entry.get())
-        conversion_rate = conversion_rate_entry.get()
-        end_of_day = int(end_of_day_entry.get())  # Retrieve EOD value
-        comments = comments_entry.get("1.0", END).strip()  # Get comments and strip extra spaces/newlines
-
-        save_to_excel(date, day, morning_count, closing_count, transaction_number, number_of_customers, conversion_rate, end_of_day, comments)
-        messagebox.showinfo("Success", "Data saved successfully!")
-
-        # Clear all fields after confirmation
-        date_entry.delete(0, END)
-        date_entry.insert(0, datetime.now().strftime("%m-%d-%Y"))  # Reset to current date
-
-        morning_count_entry.delete(0, END)
-        closing_count_entry.delete(0, END)
-        transaction_number_entry.delete(0, END)
-
-        no_of_customers_entry.config(state=NORMAL)
-        no_of_customers_entry.delete(0, END)
-        no_of_customers_entry.config(state=DISABLED)
-
-        conversion_rate_entry.config(state=NORMAL)
-        conversion_rate_entry.delete(0, END)
-        conversion_rate_entry.config(state=DISABLED)
-
-        end_of_day_entry.delete(0, END)
-        comments_entry.delete("1.0", END)  # Clear the Text widget
-
-        # Reset dropdown to default value
-        clicked.set("Mon")  
-
-    except ValueError:
-        messagebox.showerror("Error", "Please ensure all fields are filled correctly.")
-
-
-
-# UI Setup
-window = Tk()
-window.title("Conversion Tracker")
-window.config(padx=50, pady=50)
-
-# Labels
-labels = [
-    "Day:", "Date:", "Morning Count:", "Closing Count:", "# Of Cust.:",
-    "# Of Trans.:", "Conv. Rate:", "END of DAY (sales w/o tax):", "Comments:"
-]
-
-
-for idx, text in enumerate(labels):
-    label = Label(window, text=text, font=STANDARD_FONT)
-    label.grid(column=0, row=idx, pady=5)
-
-# Entries #####################################################################
-
-# Date Entry with Default Current Date
-date_entry = Entry(window, width=15)
-date_entry.grid(column=1, row=1)
-date_entry.insert(0, datetime.now().strftime("%m-%d-%Y"))  # Default to today's date
-
-morning_count_entry = Entry(window, width=15)
-morning_count_entry.grid(column=1, row=2)
-
-closing_count_entry = Entry(window, width=15)
-closing_count_entry.grid(column=1, row=3)
-
-no_of_customers_entry = Entry(window, width=15, state=DISABLED)
-no_of_customers_entry.grid(column=1, row=4)
-
-transaction_number_entry = Entry(window, width=15)
-transaction_number_entry.grid(column=1, row=5)
-
-conversion_rate_entry = Entry(window, width=15, state=DISABLED)
-conversion_rate_entry.grid(column=1, row=6)
-
-# End of Day (EOD) Entry
-end_of_day_entry = Entry(window, width=15)
-end_of_day_entry.grid(column=1, row=7)
-
-# Comments Section
-comments_entry = Text(window, height=5, width=20, font=('Arial', 9))
-comments_entry.grid(column=1, row=8, columnspan=2)
-
-# Dropdown Menu for Day Selection
-clicked = StringVar()
-clicked.set("Mon")
-day_menu = OptionMenu(window, clicked, "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")
-day_menu.grid(column=1, row=0)
-
-# Buttons
-calculate_button = Button(window, text="Calculate", command=calculate_and_fill)
-calculate_button.grid(column=2, row=9, pady=10)
-
-confirm_button = Button(window, text="Confirm", command=confirm_and_save)
-confirm_button.grid(column=2, row=10, pady=10)
-confirm_button.grid_remove()
-
-# Main loop
-window.mainloop()
+# Main application entry point
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ConversionTracker(root)
+    root.mainloop()
