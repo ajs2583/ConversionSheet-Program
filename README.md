@@ -2,7 +2,7 @@
 
 ## Overview
 The **ConversionSheet Program** was developed for **Mountain Sports Co. in Flagstaff, AZ** to facilitate accurate and efficient unit conversions. This desktop application streamlines conversions and automatically populates an Excel spreadsheet with the results.
-The **ConversionSheet Program** is a desktop application designed to streamline unit conversions and automatically populate an Excel spreadsheet with the results. This tool is built using **Python**, utilizing **Tkinter** for the graphical user interface (GUI) and **PyInstaller** for packaging the application into an executable format.
+This tool is built using **Python**, utilizing **Tkinter** for the graphical user interface (GUI) and **PyInstaller** for packaging the application into an executable format.
 
 ## Features
 - User-friendly GUI for inputting conversion values
